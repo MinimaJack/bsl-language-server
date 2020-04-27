@@ -30,6 +30,7 @@ import com.github._1c_syntax.bsl.languageserver.context.computer.SymbolTreeCompu
 import com.github._1c_syntax.bsl.languageserver.context.symbol.MethodSymbol;
 import com.github._1c_syntax.bsl.languageserver.context.symbol.Symbol;
 import com.github._1c_syntax.bsl.languageserver.context.symbol.SymbolTree;
+import com.github._1c_syntax.bsl.languageserver.utils.StringUtils;
 import com.github._1c_syntax.bsl.languageserver.utils.Trees;
 import com.github._1c_syntax.bsl.parser.BSLLexer;
 import com.github._1c_syntax.bsl.parser.BSLParser;
@@ -39,19 +40,22 @@ import com.github._1c_syntax.mdclasses.metadata.SupportConfiguration;
 import com.github._1c_syntax.mdclasses.metadata.additional.ModuleType;
 import com.github._1c_syntax.mdclasses.metadata.additional.SupportVariant;
 import com.github._1c_syntax.utils.Absolute;
-import com.github._1c_syntax.utils.Lazy;
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
+import lombok.SneakyThrows;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.TerminalNodeImpl;
 import org.antlr.v4.runtime.tree.Tree;
 import org.apache.commons.io.FilenameUtils;
-import org.eclipse.lsp4j.Position;
 import org.eclipse.lsp4j.Range;
 
 import java.net.URI;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.Optional;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static java.util.Objects.requireNonNull;
@@ -60,36 +64,33 @@ import static org.antlr.v4.runtime.Token.DEFAULT_CHANNEL;
 public class DocumentContext {
 
   private final URI uri;
-  private final FileType fileType;
-  private String content;
   private final ServerContext context;
-  private Tokenizer tokenizer;
-
-  private final ReentrantLock computeLock = new ReentrantLock();
-
-  private final Lazy<String[]> contentList = new Lazy<>(this::computeContentList, computeLock);
-  private final Lazy<ModuleType> moduleType = new Lazy<>(this::computeModuleType, computeLock);
-  private final Lazy<Map<SupportConfiguration, SupportVariant>> supportVariants
-    = new Lazy<>(this::computeSupportVariants, computeLock);
-  private final Lazy<SymbolTree> symbolTree = new Lazy<>(this::computeSymbolTree, computeLock);
-  private final Lazy<ComplexityData> cognitiveComplexityData
-    = new Lazy<>(this::computeCognitiveComplexity, computeLock);
-  private final Lazy<ComplexityData> cyclomaticComplexityData
-    = new Lazy<>(this::computeCyclomaticComplexity, computeLock);
-  private final Lazy<DiagnosticIgnoranceComputer.Data> diagnosticIgnoranceData
-    = new Lazy<>(this::computeDiagnosticIgnorance, computeLock);
-  private final Lazy<MetricStorage> metrics = new Lazy<>(this::computeMetrics, computeLock);
+  private final Cache<CacheKey, Object> cache;
+  private String content;
 
   public DocumentContext(URI uri, String content, ServerContext context) {
     this.uri = Absolute.uri(uri);
     this.content = content;
     this.context = context;
-    this.tokenizer = new Tokenizer(content);
-    this.fileType = computeFileType(this.uri);
+    this.cache = CacheBuilder.newBuilder()
+      .softValues()
+      .build();
+  }
+
+  private static boolean mustCovered(Tree node) {
+    return node instanceof BSLParser.StatementContext
+      || node instanceof BSLParser.GlobalMethodCallContext
+      || node instanceof BSLParser.Var_nameContext;
   }
 
   public ServerContext getServerContext() {
     return context;
+  }
+
+  @SneakyThrows
+  public Tokenizer getTokenizer() {
+    requireNonNull(content);
+    return (Tokenizer) this.cache.get(CacheKey.Tokenizer, () -> new Tokenizer(content));
   }
 
   public String getContent() {
@@ -97,26 +98,31 @@ public class DocumentContext {
     return content;
   }
 
+  @SneakyThrows
   public String[] getContentList() {
-    return contentList.getOrCompute();
+    return (String[]) this.cache.get(CacheKey.ContentList, this::computeContentList);
   }
 
+  @SneakyThrows
   public BSLParser.FileContext getAst() {
-    requireNonNull(content);
-    return tokenizer.getAst();
+    return (BSLParser.FileContext) this.cache.get(CacheKey.Ast, getTokenizer()::getAst);
   }
 
+  @SneakyThrows
   public SymbolTree getSymbolTree() {
-    return symbolTree.getOrCompute();
+    return (SymbolTree) this.cache.get(CacheKey.SymbolTree, this::computeSymbolTree);
   }
 
+  @SuppressWarnings("unchecked")
+  @SneakyThrows
   public List<Token> getTokens() {
-    requireNonNull(content);
-    return tokenizer.getTokens();
+    return (List<Token>) this.cache.get(CacheKey.Tokens, getTokenizer()::getTokens);
   }
 
   public List<Token> getTokensFromDefaultChannel() {
-    return getTokens().stream().filter(token -> token.getChannel() == DEFAULT_CHANNEL).collect(Collectors.toList());
+    return getTokens().stream()
+      .filter(token -> token.getChannel() == DEFAULT_CHANNEL)
+      .collect(Collectors.toList());
   }
 
   public List<Token> getComments() {
@@ -126,111 +132,85 @@ public class DocumentContext {
   }
 
   public String getText(Range range) {
-    Position start = range.getStart();
-    Position end = range.getEnd();
-
-    String[] contentListUnboxed = getContentList();
-
-    if (start.getLine() > contentListUnboxed.length || end.getLine() > contentListUnboxed.length) {
-      throw new ArrayIndexOutOfBoundsException("Range goes beyond the boundaries of the parsed document");
-    }
-
-    String startString = contentListUnboxed[start.getLine()];
-    StringBuilder sb = new StringBuilder();
-
-    if (start.getLine() == end.getLine()) {
-      sb.append(startString, start.getCharacter(), end.getCharacter());
-    } else {
-      sb.append(startString.substring(start.getCharacter())).append("\n");
-    }
-
-    for (int i = start.getLine() + 1; i <= end.getLine() - 1; i++) {
-      sb.append(contentListUnboxed[i]).append("\n");
-    }
-
-    if (start.getLine() != end.getLine()) {
-      sb.append(contentListUnboxed[end.getLine()], 0, end.getCharacter());
-    }
-
-    return sb.toString();
+    return StringUtils.getTextRange(getContentList(), range);
   }
 
+  @SneakyThrows
   public MetricStorage getMetrics() {
-    return metrics.getOrCompute();
+    return (MetricStorage) this.cache.get(CacheKey.Metrics, this::computeMetrics);
   }
 
   public URI getUri() {
     return uri;
   }
 
+  @SneakyThrows
   public FileType getFileType() {
-    return fileType;
+    return (FileType) this.cache.get(CacheKey.FileType, () -> {
+      String uriPath = uri.getPath();
+      if (uriPath == null) {
+        return FileType.BSL;
+      }
+
+      return Arrays.stream(FileType.values())
+        .filter(Predicate.isEqual(FilenameUtils.getExtension(uriPath).toUpperCase(Locale.ENGLISH)))
+        .findAny()
+        .orElse(FileType.BSL);
+    });
   }
 
+  @SneakyThrows
   public ComplexityData getCognitiveComplexityData() {
-    return cognitiveComplexityData.getOrCompute();
+    return (ComplexityData) this.cache.get(CacheKey.CognitiveComplexityData, this::computeCognitiveComplexity);
   }
 
+  @SneakyThrows
   public ComplexityData getCyclomaticComplexityData() {
-    return cyclomaticComplexityData.getOrCompute();
+    return (ComplexityData) this.cache.get(CacheKey.CyclomaticComplexityData, this::computeCyclomaticComplexity);
   }
 
+  @SneakyThrows
   public DiagnosticIgnoranceComputer.Data getDiagnosticIgnorance() {
-    return diagnosticIgnoranceData.getOrCompute();
+    return (DiagnosticIgnoranceComputer.Data) this.cache.get(CacheKey.DiagnosticIgnorance, this::computeDiagnosticIgnorance);
   }
 
+  @SneakyThrows
   public ModuleType getModuleType() {
-    return moduleType.getOrCompute();
+    return (ModuleType) this.cache.get(CacheKey.ModuleType, this::computeModuleType);
   }
 
+  @SuppressWarnings("unchecked")
+  @SneakyThrows
   public Map<SupportConfiguration, SupportVariant> getSupportVariants() {
-    return supportVariants.getOrCompute();
+    return (Map<SupportConfiguration, SupportVariant>) this.cache.get(CacheKey.SupportVariants, this::computeSupportVariants);
   }
 
-  public void rebuild(String content) {
-    computeLock.lock();
+  public synchronized void rebuild(String content) {
     clear();
     this.content = content;
-    tokenizer = new Tokenizer(content);
-    computeLock.unlock();
+    this.cache.invalidate(CacheKey.Tokenizer);
   }
 
   public void clearSecondaryData() {
-    content = null;
-    contentList.clear();
-    tokenizer = null;
+    this.cache.invalidate(CacheKey.ContentList);
+    this.cache.invalidate(CacheKey.Tokens);
+    this.cache.invalidate(CacheKey.Ast);
+    this.cache.invalidate(CacheKey.Tokenizer);
+    this.content = null;
 
-    if (symbolTree.isPresent()) {
-      getSymbolTree().getChildrenFlat().forEach(Symbol::clearParseTreeData);
-    }
-    cognitiveComplexityData.clear();
-    cyclomaticComplexityData.clear();
-    metrics.clear();
-    diagnosticIgnoranceData.clear();
+    Optional.ofNullable(this.cache.getIfPresent(CacheKey.SymbolTree))
+      .map(SymbolTree.class::cast)
+      .ifPresent(symbolTree -> symbolTree.getChildrenFlat().forEach(Symbol::clearParseTreeData));
+
+    this.cache.invalidate(CacheKey.CognitiveComplexityData);
+    this.cache.invalidate(CacheKey.CyclomaticComplexityData);
+    this.cache.invalidate(CacheKey.Metrics);
+    this.cache.invalidate(CacheKey.DiagnosticIgnorance);
   }
 
   private void clear() {
     clearSecondaryData();
-
-    symbolTree.clear();
-  }
-
-  private static FileType computeFileType(URI uri) {
-    String uriPath = uri.getPath();
-    if (uriPath == null) {
-      return FileType.BSL;
-    }
-
-    FileType fileTypeFromUri;
-    try {
-      fileTypeFromUri = FileType.valueOf(
-        FilenameUtils.getExtension(uriPath).toUpperCase(Locale.ENGLISH)
-      );
-    } catch (IllegalArgumentException ignored) {
-      fileTypeFromUri = FileType.BSL;
-    }
-
-    return fileTypeFromUri;
+    this.cache.invalidate(CacheKey.SymbolTree);
   }
 
   private String[] computeContentList() {
@@ -240,7 +220,6 @@ public class DocumentContext {
   private SymbolTree computeSymbolTree() {
     return new SymbolTreeComputer(this).compute();
   }
-
 
   private ModuleType computeModuleType() {
     return context.getConfiguration().getModuleType(uri);
@@ -267,18 +246,13 @@ public class DocumentContext {
     metricsTemp.setFunctions(Math.toIntExact(methodsUnboxed.stream().filter(MethodSymbol::isFunction).count()));
     metricsTemp.setProcedures(methodsUnboxed.size() - metricsTemp.getFunctions());
 
-    int ncloc = (int) getTokensFromDefaultChannel().stream()
-      .map(Token::getLine)
-      .distinct()
-      .count();
-
-    metricsTemp.setNcloc(ncloc);
 
     int[] nclocData = getTokensFromDefaultChannel().stream()
       .mapToInt(Token::getLine)
-      .distinct().toArray();
+      .distinct()
+      .toArray();
     metricsTemp.setNclocData(nclocData);
-
+    metricsTemp.setNcloc(nclocData.length);
     metricsTemp.setCovlocData(computeCovlocData());
 
     int lines;
@@ -290,13 +264,11 @@ public class DocumentContext {
     }
     metricsTemp.setLines(lines);
 
-    int comments;
-    final List<Token> commentsUnboxed = getComments();
-    if (commentsUnboxed.isEmpty()) {
-      comments = 0;
-    } else {
-      comments = (int) commentsUnboxed.stream().map(Token::getLine).distinct().count();
-    }
+    int comments = (int) getComments()
+      .stream()
+      .map(Token::getLine)
+      .distinct()
+      .count();
     metricsTemp.setComments(comments);
 
     int statements = Trees.findAllRuleNodes(getAst(), BSLParser.RULE_statement).size();
@@ -311,17 +283,12 @@ public class DocumentContext {
   private int[] computeCovlocData() {
 
     return Trees.getDescendants(getAst()).stream()
-      .filter(node -> !(node instanceof TerminalNodeImpl))
+      .filter(Predicate.not(TerminalNodeImpl.class::isInstance))
       .filter(DocumentContext::mustCovered)
       .mapToInt(node -> ((BSLParserRuleContext) node).getStart().getLine())
-      .distinct().toArray();
+      .distinct()
+      .toArray();
 
-  }
-
-  private static boolean mustCovered(Tree node) {
-    return node instanceof BSLParser.StatementContext
-      || node instanceof BSLParser.GlobalMethodCallContext
-      || node instanceof BSLParser.Var_nameContext;
   }
 
   private DiagnosticIgnoranceComputer.Data computeDiagnosticIgnorance() {

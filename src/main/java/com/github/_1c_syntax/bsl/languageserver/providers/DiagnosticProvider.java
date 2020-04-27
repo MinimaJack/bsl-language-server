@@ -31,12 +31,11 @@ import org.eclipse.lsp4j.PublishDiagnosticsParams;
 import org.eclipse.lsp4j.services.LanguageClient;
 
 import java.net.URI;
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -45,7 +44,7 @@ public final class DiagnosticProvider {
 
   public static final String SOURCE = "bsl-language-server";
 
-  private final Map<URI, Set<Diagnostic>> computedDiagnostics;
+  private final Map<URI, List<Diagnostic>> computedDiagnostics;
   private final DiagnosticSupplier diagnosticSupplier;
 
   public DiagnosticProvider(DiagnosticSupplier diagnosticSupplier) {
@@ -60,10 +59,9 @@ public final class DiagnosticProvider {
   }
 
   public void publishEmptyDiagnosticList(LanguageClient client, DocumentContext documentContext) {
-    List<Diagnostic> diagnostics = new ArrayList<>();
-    computedDiagnostics.put(documentContext.getUri(), new LinkedHashSet<>());
+    computedDiagnostics.put(documentContext.getUri(), Collections.emptyList());
     client.publishDiagnostics(
-      new PublishDiagnosticsParams(documentContext.getUri().toString(), diagnostics)
+      new PublishDiagnosticsParams(documentContext.getUri().toString(), Collections.emptyList())
     );
   }
 
@@ -71,7 +69,8 @@ public final class DiagnosticProvider {
     DiagnosticIgnoranceComputer.Data diagnosticIgnorance = documentContext.getDiagnosticIgnorance();
 
     List<Diagnostic> diagnostics =
-      diagnosticSupplier.getDiagnosticInstances(documentContext).parallelStream()
+      diagnosticSupplier.getDiagnosticInstances(documentContext)
+        .parallelStream()
         .flatMap((BSLDiagnostic diagnostic) -> {
           try {
             return diagnostic.getDiagnostics(documentContext).stream();
@@ -86,21 +85,21 @@ public final class DiagnosticProvider {
             return Stream.empty();
           }
         })
-        .filter((Diagnostic diagnostic) ->
-          !diagnosticIgnorance.diagnosticShouldBeIgnored(diagnostic))
+        .filter(Predicate.not(diagnosticIgnorance::diagnosticShouldBeIgnored))
+        .distinct()
         .collect(Collectors.toList());
 
-    computedDiagnostics.put(documentContext.getUri(), new LinkedHashSet<>(diagnostics));
+    computedDiagnostics.put(documentContext.getUri(), diagnostics);
 
     return diagnostics;
   }
 
-  public Set<Diagnostic> getComputedDiagnostics(DocumentContext documentContext) {
-    return computedDiagnostics.getOrDefault(documentContext.getUri(), new LinkedHashSet<>());
+  public List<Diagnostic> getComputedDiagnostics(DocumentContext documentContext) {
+    return computedDiagnostics.getOrDefault(documentContext.getUri(), Collections.emptyList());
   }
 
   public void clearComputedDiagnostics(DocumentContext documentContext) {
-    computedDiagnostics.put(documentContext.getUri(), new LinkedHashSet<>());
+    computedDiagnostics.put(documentContext.getUri(), Collections.emptyList());
   }
 
   public void clearAllComputedDiagnostics() {

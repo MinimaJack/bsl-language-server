@@ -189,8 +189,6 @@ public class AnalyzeCommand implements Callable<Integer> {
 
     FileInfo fileInfo = new FileInfo(filePath, diagnostics, metrics);
 
-    // clean up AST after diagnostic computing to free up RAM.
-    documentContext.clearSecondaryData();
     diagnosticProvider.clearComputedDiagnostics(documentContext);
 
     return fileInfo;

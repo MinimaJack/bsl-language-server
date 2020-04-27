@@ -56,7 +56,7 @@ public abstract class AbstractQuickFixSupplier implements CodeActionSupplier {
       return Collections.emptyList();
     }
 
-    Set<Diagnostic> computedDiagnostics = diagnosticProvider.getComputedDiagnostics(documentContext);
+    List<Diagnostic> computedDiagnostics = diagnosticProvider.getComputedDiagnostics(documentContext);
 
     Stream<Diagnostic> diagnosticStream = incomingDiagnostics.stream()
       .filter(computedDiagnostics::contains);
