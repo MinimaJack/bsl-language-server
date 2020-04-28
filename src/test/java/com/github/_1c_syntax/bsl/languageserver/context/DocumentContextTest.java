@@ -29,7 +29,6 @@ import lombok.SneakyThrows;
 import org.antlr.v4.runtime.Lexer;
 import org.antlr.v4.runtime.Token;
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.lang3.reflect.FieldUtils;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
@@ -59,11 +58,15 @@ class DocumentContextTest {
     // given
     DocumentContext documentContext = getDocumentContext();
 
+    assertThat(documentContext.<Tokenizer>getIfPresentInCache(CacheKey.Tokenizer)).isNull();
+
+    assertThat(documentContext.getTokenizer()).isNotNull();
+    assertThat(documentContext.<Tokenizer>getIfPresentInCache(CacheKey.Tokenizer)).isNotNull();
+
     // when
     documentContext.clearSecondaryData();
 
     // then
-    documentContext.invalidateCache(CacheKey.Tokenizer);
     assertThat(documentContext.<Tokenizer>getIfPresentInCache(CacheKey.Tokenizer)).isNull();
   }
 

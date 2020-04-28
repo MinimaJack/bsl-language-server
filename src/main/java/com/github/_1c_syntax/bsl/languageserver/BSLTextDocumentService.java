@@ -255,10 +255,6 @@ public class BSLTextDocumentService implements TextDocumentService, LanguageClie
     if (documentContext == null) {
       return;
     }
-
-    documentContext.clearSecondaryData();
-    diagnosticProvider.clearComputedDiagnostics(documentContext);
-
     if (client != null) {
       diagnosticProvider.publishEmptyDiagnosticList(client, documentContext);
     }

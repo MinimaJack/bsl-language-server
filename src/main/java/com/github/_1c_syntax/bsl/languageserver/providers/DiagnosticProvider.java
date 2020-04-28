@@ -25,6 +25,9 @@ import com.github._1c_syntax.bsl.languageserver.context.DocumentContext;
 import com.github._1c_syntax.bsl.languageserver.context.computer.DiagnosticIgnoranceComputer;
 import com.github._1c_syntax.bsl.languageserver.diagnostics.BSLDiagnostic;
 import com.github._1c_syntax.bsl.languageserver.diagnostics.DiagnosticSupplier;
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.lsp4j.Diagnostic;
 import org.eclipse.lsp4j.PublishDiagnosticsParams;
@@ -32,9 +35,8 @@ import org.eclipse.lsp4j.services.LanguageClient;
 
 import java.net.URI;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.concurrent.ForkJoinPool;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -44,31 +46,31 @@ public final class DiagnosticProvider {
 
   public static final String SOURCE = "bsl-language-server";
 
-  private final Map<URI, List<Diagnostic>> computedDiagnostics;
+  private final Cache<URI, List<Diagnostic>> cache = CacheBuilder.newBuilder()
+    .softValues()
+    .build();
+
   private final DiagnosticSupplier diagnosticSupplier;
 
   public DiagnosticProvider(DiagnosticSupplier diagnosticSupplier) {
     this.diagnosticSupplier = diagnosticSupplier;
-    computedDiagnostics = new HashMap<>();
   }
 
   public void computeAndPublishDiagnostics(LanguageClient client, DocumentContext documentContext) {
-    List<Diagnostic> diagnostics = computeDiagnostics(documentContext);
-
-    client.publishDiagnostics(new PublishDiagnosticsParams(documentContext.getUri().toString(), diagnostics));
+    client.publishDiagnostics(new PublishDiagnosticsParams(documentContext.getUri().toString(), computeDiagnostics(documentContext)));
   }
 
+  @SneakyThrows
   public void publishEmptyDiagnosticList(LanguageClient client, DocumentContext documentContext) {
-    computedDiagnostics.put(documentContext.getUri(), Collections.emptyList());
-    client.publishDiagnostics(
+     client.publishDiagnostics(
       new PublishDiagnosticsParams(documentContext.getUri().toString(), Collections.emptyList())
     );
   }
 
+  @SneakyThrows
   public List<Diagnostic> computeDiagnostics(DocumentContext documentContext) {
     DiagnosticIgnoranceComputer.Data diagnosticIgnorance = documentContext.getDiagnosticIgnorance();
-
-    List<Diagnostic> diagnostics =
+    return this.cache.get(documentContext.getUri(), () -> ForkJoinPool.commonPool().submit(() ->
       diagnosticSupplier.getDiagnosticInstances(documentContext)
         .parallelStream()
         .flatMap((BSLDiagnostic diagnostic) -> {
@@ -87,22 +89,19 @@ public final class DiagnosticProvider {
         })
         .filter(Predicate.not(diagnosticIgnorance::diagnosticShouldBeIgnored))
         .distinct()
-        .collect(Collectors.toList());
-
-    computedDiagnostics.put(documentContext.getUri(), diagnostics);
-
-    return diagnostics;
+        .collect(Collectors.toList())).get());
   }
 
   public List<Diagnostic> getComputedDiagnostics(DocumentContext documentContext) {
-    return computedDiagnostics.getOrDefault(documentContext.getUri(), Collections.emptyList());
+    return computeDiagnostics(documentContext);
   }
 
+
   public void clearComputedDiagnostics(DocumentContext documentContext) {
-    computedDiagnostics.put(documentContext.getUri(), Collections.emptyList());
+    this.cache.invalidate(documentContext.getUri());
   }
 
   public void clearAllComputedDiagnostics() {
-    computedDiagnostics.clear();
+    this.cache.invalidateAll();
   }
 }
