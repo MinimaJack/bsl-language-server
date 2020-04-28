@@ -36,6 +36,7 @@ import com.github._1c_syntax.bsl.parser.BSLLexer;
 import com.github._1c_syntax.bsl.parser.BSLParser;
 import com.github._1c_syntax.bsl.parser.BSLParserRuleContext;
 import com.github._1c_syntax.bsl.parser.Tokenizer;
+import com.github._1c_syntax.mdclasses.mdo.MDObjectBase;
 import com.github._1c_syntax.mdclasses.metadata.SupportConfiguration;
 import com.github._1c_syntax.mdclasses.metadata.additional.ModuleType;
 import com.github._1c_syntax.mdclasses.metadata.additional.SupportVariant;
@@ -278,6 +279,10 @@ public class DocumentContext {
     metricsTemp.setCyclomaticComplexity(getCyclomaticComplexityData().getFileComplexity());
 
     return metricsTemp;
+  }
+
+  public Optional<MDObjectBase> getMdObject() {
+    return Optional.ofNullable(getServerContext().getConfiguration().getModulesByURI().get(getUri()));
   }
 
   private int[] computeCovlocData() {
