@@ -78,6 +78,15 @@ public class DocumentContext {
       .build();
   }
 
+  public void invalidateCache(CacheKey key){
+    this.cache.invalidate(key);
+  }
+
+  @SuppressWarnings("unchecked")
+  public <T> T getIfPresentInCache(CacheKey key){
+    return (T) this.cache.getIfPresent(key);
+  }
+
   private static boolean mustCovered(Tree node) {
     return node instanceof BSLParser.StatementContext
       || node instanceof BSLParser.GlobalMethodCallContext

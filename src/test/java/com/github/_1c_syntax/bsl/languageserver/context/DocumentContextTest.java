@@ -24,6 +24,7 @@ package com.github._1c_syntax.bsl.languageserver.context;
 import com.github._1c_syntax.bsl.languageserver.context.symbol.MethodSymbol;
 import com.github._1c_syntax.bsl.languageserver.context.symbol.RegionSymbol;
 import com.github._1c_syntax.bsl.languageserver.util.TestUtils;
+import com.github._1c_syntax.bsl.parser.Tokenizer;
 import lombok.SneakyThrows;
 import org.antlr.v4.runtime.Lexer;
 import org.antlr.v4.runtime.Token;
@@ -54,7 +55,7 @@ class DocumentContextTest {
   }
 
   @Test
-  void testClearASTData() throws IllegalAccessException {
+  void testClearASTData() {
     // given
     DocumentContext documentContext = getDocumentContext();
 
@@ -62,8 +63,8 @@ class DocumentContextTest {
     documentContext.clearSecondaryData();
 
     // then
-    final Object tokenizer = FieldUtils.readField(documentContext, "tokenizer", true);
-    assertThat(tokenizer).isNull();
+    documentContext.invalidateCache(CacheKey.Tokenizer);
+    assertThat(documentContext.<Tokenizer>getIfPresentInCache(CacheKey.Tokenizer)).isNull();
   }
 
   @Test
@@ -107,7 +108,7 @@ class DocumentContextTest {
   }
 
   @Test
-  void testMethodComputeParseError() throws IOException {
+  void testMethodComputeParseError() {
 
     DocumentContext documentContext =
       getDocumentContext("./src/test/resources/context/DocumentContextParseErrorTest.bsl");
