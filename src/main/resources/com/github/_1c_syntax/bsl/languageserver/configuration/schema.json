@@ -158,6 +158,9 @@
                 "InvalidCharacterInFile": {
                     "$ref": "parameters-schema.json#/definitions/InvalidCharacterInFile"
                 },
+                "IsInRoleMethodDiagnostic": {
+                    "$ref": "parameters-schema.json#/definitions/IsInRoleMethodDiagnostic"
+                },
                 "LineLength": {
                     "$ref": "parameters-schema.json#/definitions/LineLength"
                 },
@@ -277,6 +280,9 @@
                 },
                 "UnreachableCode": {
                     "$ref": "parameters-schema.json#/definitions/UnreachableCode"
+                },
+                "UnsafeSafeModeMethodCall": {
+                    "$ref": "parameters-schema.json#/definitions/UnsafeSafeModeMethodCall"
                 },
                 "UnusedLocalMethod": {
                     "$ref": "parameters-schema.json#/definitions/UnusedLocalMethod"

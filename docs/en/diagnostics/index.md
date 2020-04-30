@@ -8,10 +8,10 @@ To escape individual sections of code or files from triggering diagnostics, you 
 
 ## Implemented diagnostics
 
-Total: **102**
+Total: **104**
 
-* Error: **32**
-* Code smell: **65**
+* Error: **33**
+* Code smell: **66**
 * Vulnerability: **2**
 * Security Hotspot: **3**
 
@@ -62,6 +62,7 @@ Total: **102**
 | [IfElseDuplicatedCondition](IfElseDuplicatedCondition.md) | Duplicated conditions in If...Then...ElseIf... statements | Yes | Major | Code smell | `suspicious` |
 | [IfElseIfEndsWithElse](IfElseIfEndsWithElse.md) | Else...The...ElseIf... statement should end with Else branch | Yes | Major | Code smell | `badpractice` |
 | [InvalidCharacterInFile](InvalidCharacterInFile.md) | Invalid character | Yes | Major | Error | `error`<br/>`standard`<br/>`unpredictable` |
+| [IsInRoleMethodDiagnostic](IsInRoleMethodDiagnostic.md) | IsInRole global method call | Yes | Major | Code smell | `error` |
 | [LineLength](LineLength.md) | Line Length limit | Yes | Minor | Code smell | `standard`<br/>`badpractice` |
 | [MagicNumber](MagicNumber.md) | Magic numbers | Yes | Minor | Code smell | `badpractice` |
 | [MethodSize](MethodSize.md) | Method size | Yes | Major | Code smell | `badpractice` |
@@ -102,6 +103,7 @@ Total: **102**
 | [UnaryPlusInConcatenation](UnaryPlusInConcatenation.md) | Unary Plus sign in string concatenation | Yes | Blocker | Error | `suspicious`<br/>`brainoverload` |
 | [UnknownPreprocessorSymbol](UnknownPreprocessorSymbol.md) | Unknown preprocessor symbol | Yes | Critical | Error | `standard`<br/>`error` |
 | [UnreachableCode](UnreachableCode.md) | Unreachable Code | Yes | Minor | Error | `design`<br/>`suspicious` |
+| [UnsafeSafeModeMethodCall](UnsafeSafeModeMethodCall.md) | Unsafe SafeMode method call | Yes | Blocker | Error | `deprecated`<br/>`error` |
 | [UnusedLocalMethod](UnusedLocalMethod.md) | Unused local method | Yes | Major | Code smell | `standard`<br/>`suspicious` |
 | [UnusedParameters](UnusedParameters.md) | Unused parameter | Yes | Major | Code smell | `design` |
 | [UseLessForEach](UseLessForEach.md) | Useless collection iteration | Yes | Critical | Error | `clumsy` |
