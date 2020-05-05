@@ -207,11 +207,6 @@ public class DocumentContext {
     this.cache.invalidate(CacheKey.Ast);
     this.cache.invalidate(CacheKey.Tokenizer);
     this.content = null;
-
-    Optional.ofNullable(this.cache.getIfPresent(CacheKey.SymbolTree))
-      .map(SymbolTree.class::cast)
-      .ifPresent(symbolTree -> symbolTree.getChildrenFlat().forEach(Symbol::clearParseTreeData));
-
     this.cache.invalidate(CacheKey.CognitiveComplexityData);
     this.cache.invalidate(CacheKey.CyclomaticComplexityData);
     this.cache.invalidate(CacheKey.Metrics);
