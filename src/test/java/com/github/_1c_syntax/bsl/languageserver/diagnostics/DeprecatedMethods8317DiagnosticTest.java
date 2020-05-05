@@ -19,39 +19,30 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with BSL Language Server.
  */
-package com.github._1c_syntax.bsl.languageserver.context.symbol;
+package com.github._1c_syntax.bsl.languageserver.diagnostics;
 
-import com.github._1c_syntax.bsl.languageserver.utils.Ranges;
-import lombok.Getter;
-import lombok.Setter;
-import org.eclipse.lsp4j.Range;
+import org.eclipse.lsp4j.Diagnostic;
+import org.junit.jupiter.api.Test;
 
-import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 
-public interface Symbol {
+import static com.github._1c_syntax.bsl.languageserver.util.Assertions.assertThat;
 
-  String getName();
-
-  Range getRange();
-
-  Optional<Symbol> getParent();
-  void setParent(Optional<Symbol> symbol);
-
-  List<Symbol> getChildren();
-
-  default Optional<Symbol> getRootParent() {
-    return getParent().flatMap(Symbol::getRootParent).or(() -> Optional.of(this));
+class DeprecatedMethods8317DiagnosticTest extends AbstractDiagnosticTest<DeprecatedMethods8317Diagnostic> {
+  DeprecatedMethods8317DiagnosticTest() {
+    super(DeprecatedMethods8317Diagnostic.class);
   }
 
-  static Symbol emptySymbol() {
-    return new Symbol() {
-      @Getter private final String name = "empty";
-      @Getter private final Range range = Ranges.create(-1, 0, -1, 0);
-      @Getter @Setter private Optional<Symbol> parent = Optional.empty();
-      @Getter private final List<Symbol> children = Collections.emptyList();
-    };
-  }
+  @Test
+  void test() {
 
+    List<Diagnostic> diagnostics = getDiagnostics();
+
+    assertThat(diagnostics).hasSize(3);
+    assertThat(diagnostics, true)
+      .hasRange(4, 17, 4, 43)
+      .hasRange(5, 17, 5, 45)
+      .hasRange(6, 8, 6, 34);
+
+  }
 }

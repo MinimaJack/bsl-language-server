@@ -28,33 +28,32 @@ import com.github._1c_syntax.bsl.languageserver.diagnostics.metadata.DiagnosticS
 import com.github._1c_syntax.bsl.languageserver.diagnostics.metadata.DiagnosticSeverity;
 import com.github._1c_syntax.bsl.languageserver.diagnostics.metadata.DiagnosticTag;
 import com.github._1c_syntax.bsl.languageserver.diagnostics.metadata.DiagnosticType;
-import com.github._1c_syntax.bsl.languageserver.utils.Trees;
 import com.github._1c_syntax.bsl.parser.BSLParser;
-import com.github._1c_syntax.bsl.parser.BSLParserRuleContext;
 
 import java.util.regex.Pattern;
 
 @DiagnosticMetadata(
-  type = DiagnosticType.ERROR,
-  severity = DiagnosticSeverity.BLOCKER,
+  type = DiagnosticType.CODE_SMELL,
+  severity = DiagnosticSeverity.INFO,
+  compatibilityMode = DiagnosticCompatibilityMode.COMPATIBILITY_MODE_8_3_17,
   scope = DiagnosticScope.BSL,
-  compatibilityMode = DiagnosticCompatibilityMode.COMPATIBILITY_MODE_8_3_1,
-  minutesToFix = 1,
+  minutesToFix = 5,
   tags = {
-    DiagnosticTag.DEPRECATED,
-    DiagnosticTag.ERROR
+    DiagnosticTag.DEPRECATED
   }
 
 )
-public class UnsafeSafeModeMethodCallDiagnostic extends AbstractFindMethodDiagnostic {
+public class DeprecatedMethods8317Diagnostic extends AbstractFindMethodDiagnostic {
 
-  private static final Pattern SAFE_MODE_METHOD_NAME = Pattern.compile(
-    "(БезопасныйРежим|SafeMode)",
+  private static final Pattern DEPRECATED_METHODS_NAMES = Pattern.compile(
+    "(КраткоеПредставлениеОшибки|BriefErrorDescription|" +
+      "ПодробноеПредставлениеОшибки|DetailErrorDescription|" +
+      "ПоказатьИнформациюОбОшибке|ShowErrorInfo)",
     Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE
   );
 
-  public UnsafeSafeModeMethodCallDiagnostic(DiagnosticInfo info) {
-    super(info, SAFE_MODE_METHOD_NAME);
+  public DeprecatedMethods8317Diagnostic(DiagnosticInfo info) {
+    super(info, DEPRECATED_METHODS_NAMES);
   }
 
   @Override
@@ -62,29 +61,4 @@ public class UnsafeSafeModeMethodCallDiagnostic extends AbstractFindMethodDiagno
     return false;
   }
 
-  @Override
-  protected boolean checkGlobalMethodCall(BSLParser.GlobalMethodCallContext ctx) {
-
-    BSLParserRuleContext rootIfNode = null;
-    BSLParserRuleContext rootExpressionNode = null;
-    BSLParserRuleContext currentRootMember = null;
-
-    if (SAFE_MODE_METHOD_NAME.matcher(ctx.methodName().getText()).matches()) {
-      rootIfNode = Trees.getRootParent(ctx, BSLParser.RULE_ifStatement);
-      rootExpressionNode = Trees.getRootParent(ctx, BSLParser.RULE_expression);
-      currentRootMember = Trees.getRootParent(ctx, BSLParser.RULE_member);
-    }
-
-    if (rootIfNode == null || rootExpressionNode == null || currentRootMember == null) {
-      return false;
-    }
-
-    int indexOfCurrentMemberNode = rootExpressionNode.children.indexOf(currentRootMember);
-    if (indexOfCurrentMemberNode != rootExpressionNode.getChildCount() - 1) {
-      var nextNode = rootExpressionNode.children.get(indexOfCurrentMemberNode + 1);
-      return !(Trees.nodeContains(nextNode, BSLParser.RULE_compareOperation));
-    }
-
-    return true;
-  }
 }
